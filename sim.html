@@ -9,6 +9,14 @@
             margin: 0;
         }
     </style>
+
+    <form>
+        Number of Blue Bugs: <input type="text" id="numBlueBugs" size="3" onChange="changeNumBlueBugs();"/>
+        Number of Red Bugs: <input type="text" id="numRedBugs" size="3" onChange="changeNumRedBugs();"/>
+        Number of Food: <input type="text" id="numFood" size="3" onChange="changeNumFood();"/>
+        Speed: <input id="speed" type="text" size="5" onChange="changeSpeed();"/>
+        <button type="button" onClick="startGame();">Start Simulator</button>
+    </form>
 </head>
 <body>
 
@@ -17,18 +25,39 @@
 
     var rnd = Phaser.Math.RND;
     var numOfBugs = 100;
+    var numOfRedBugs = 100;
+    var numOfFood = 10;
+    var bugSpeed = 50;
     var boardDimensionHeight = window.innerHeight;
     var boardDimensionWidth = window.innerWidth;
     rnd.init(0);
 
+    // These functions will change the settings when we update the setting fields
+
+    function changeNumBlueBugs() {
+        numOfBugs = parseInt(document.getElementById("numBlueBugs").value);
+    }
+
+    function changeNumRedBugs() {
+        numOfRedBugs = parseInt(document.getElementById("numRedBugs").value);
+    }
+
+    function changeNumFood() {
+        numOfFood = parseInt(document.getElementById("numFood").value);
+    }
+
+    function changeSpeed() {
+        bugSpeed = parseInt(document.getElementById("speed").value);
+    }
+
     class Bug {
-        constructor (sprite) {
+        constructor (sprite, speed) {
             this.sprite = sprite;
-            this.speed = 1;
+            this.speed = speed;
             this.health = 0;
             this.lastVelocityUpdate = 0;
-            this.sprite.setVelocityX(rnd.between(0,1000));
-            this.sprite.setVelocityY(rnd.between(0,1000));
+            this.sprite.setVelocityX(rnd.frac() * this.speed);
+            this.sprite.setVelocityY(rnd.frac() * this.speed);
         }
 
         set velocityX(v) {
@@ -95,16 +124,32 @@
         }
     };
 
-    var blueBugs = [];
+    var blueBugGroup;
+    var redBugGroup;
+    var foodGroup;
     var cursors;
     var score = 0;
     var scoreText;
 
-    var game = new Phaser.Game(config);
+    var game = null;
+
+    function startGame() {
+        if (game !== null) {
+            console.log("Restarting");
+            game.registry.destroy();
+            game.events.off();
+            game.scene.restart();
+        }
+        
+        game = new Phaser.Game(config);
+        
+        return false;
+    }
 
     function preload ()
     {
-        this.load.image('bug', 'assets/blue_bug.png');
+        this.load.image('blueBug', 'assets/blue_bug.png');
+        this.load.image('redBug', 'assets/Red_bug.svg');
         this.load.image('food', 'assets/pixel-berry-bush.png');
         /*
         this.load.spritesheet('dude', 'assets/dude.png', { frameWidth: 32, frameHeight: 48 });
@@ -124,19 +169,36 @@
         platforms.create(750, 220, 'ground');
         */
 
+        // Create a group to hold the blue bugs
+        blueBugGroup = this.physics.add.group();
+        blueBugGroup.enableBody = true;
+
+        redBugGroup = this.physics.add.group();
+        redBugGroup.enableBody = true;
+        
+        
         for (let index = 0; index < numOfBugs; index++) {
-            let bug = new Bug(this.physics.add.sprite(100, 450, 'bug', 1));
+            let bug = new Bug(blueBugGroup.create(100, 450, 'blueBug'), bugSpeed);
             bug.sprite.setScale(0.05);
             bug.sprite.setCollideWorldBounds(true);
             bug.sprite.body.bounce.set(1);
+        }
+        
+        for (let index = 0; index < numOfRedBugs; index++) {
+            let bug = new Bug(redBugGroup.create(100, 450, 'redBug'), bugSpeed);
 
-            blueBugs.push(bug);
+            bug.sprite.setScale(0.05);
+            bug.sprite.setCollideWorldBounds(true);
+            bug.sprite.body.bounce.set(1);
         }
 
-        for (let index = 0; index < numOfBugs; index++) {
+        for (let index = 0; index < numOfFood; index++) {
             let food = this.physics.add.sprite(rnd.between(0,boardDimensionWidth), rnd.between(0,boardDimensionHeight), 'food');
             food.setScale(0.008);
         }
+
+        // Make the blue and red bugs collide
+        this.physics.add.collider(redBugGroup, blueBugGroup);
 
         /*
         for (var i = 0; i < 10; i++) {
