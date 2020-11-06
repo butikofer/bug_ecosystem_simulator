@@ -1,0 +1,212 @@
+<!doctype html> 
+<html lang="en"> 
+<head> 
+    <meta charset="UTF-8" />
+    <title>Isaac's Ecosystem Simulator</title>
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.11.0/dist/phaser.js"></script>
+    <style type="text/css">
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+<script type="text/javascript">
+    "use strict";
+
+    var rnd = Phaser.Math.RND;
+    var numOfBugs = 100;
+    var boardDimensionHeight = window.innerHeight;
+    var boardDimensionWidth = window.innerWidth;
+    rnd.init(0);
+
+    class Bug {
+        constructor (sprite) {
+            this.sprite = sprite;
+            this.speed = 1;
+            this.health = 0;
+            this.lastVelocityUpdate = 0;
+            this.sprite.setVelocityX(rnd.between(0,1000));
+            this.sprite.setVelocityY(rnd.between(0,1000));
+        }
+
+        set velocityX(v) {
+            this.sprite.setVelocityX(v);
+        }
+
+        set velocityY(v) {
+            this.sprite.setVelocityY(v);
+        }
+
+        isAtWorldBorder() {
+            if (this.sprite.body.checkWorldBounds()) {
+                console.log("At world boundary!");
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        setRandomVelocity() {
+            if (this.isAtWorldBorder() === false) {
+                return;
+            }
+
+            let oldX = this.sprite.body.velocity.x;
+            let oldY = this.sprite.body.velocity.y;
+            let xSign = oldX >= 0 ? 1 : -1;
+            let ySign = oldY >= 0 ? 1 : -1;
+
+            console.log(this.sprite.body.velocity);
+            console.log(oldX);
+            console.log(xSign);
+            console.log(ySign);
+
+            /*let newX = rnd.between(0,100) * xSign * -1;
+            let newY = rnd.between(0,100) * ySign * -1;*/
+
+            let newX = oldX * xSign * -1;
+            let newY = oldY * xSign * -1;
+
+            console.log(newX + "," + newY);
+
+            this.sprite.setVelocityX(newX);
+            this.sprite.setVelocityY(newY);
+        }
+    };
+
+    var config = {
+        type: Phaser.AUTO,
+        width: boardDimensionWidth,
+        height: boardDimensionHeight,
+        backgroundColor: 0xFFFF99,
+        physics: {
+            default: 'arcade',
+            arcade: {
+                /* gravity: { y: 300 }, */
+                debug: false
+            }
+        },
+        scene: {
+            preload: preload,
+            create: create,
+            update: update
+        }
+    };
+
+    var blueBugs = [];
+    var cursors;
+    var score = 0;
+    var scoreText;
+
+    var game = new Phaser.Game(config);
+
+    function preload ()
+    {
+        this.load.image('bug', 'assets/blue_bug.png');
+        this.load.image('food', 'assets/pixel-berry-bush.png');
+        /*
+        this.load.spritesheet('dude', 'assets/dude.png', { frameWidth: 32, frameHeight: 48 });
+        */
+    }
+
+    function create ()
+    {
+
+        /*
+        platforms = this.physics.add.staticGroup();
+
+        platforms.create(400, 568, 'ground').setScale(2).refreshBody();
+
+        platforms.create(600, 400, 'ground');
+        platforms.create(50, 250, 'ground');
+        platforms.create(750, 220, 'ground');
+        */
+
+        for (let index = 0; index < numOfBugs; index++) {
+            let bug = new Bug(this.physics.add.sprite(100, 450, 'bug', 1));
+            bug.sprite.setScale(0.05);
+            bug.sprite.setCollideWorldBounds(true);
+            bug.sprite.body.bounce.set(1);
+
+            blueBugs.push(bug);
+        }
+
+        for (let index = 0; index < numOfBugs; index++) {
+            let food = this.physics.add.sprite(rnd.between(0,boardDimensionWidth), rnd.between(0,boardDimensionHeight), 'food');
+            food.setScale(0.008);
+        }
+
+        /*
+        for (var i = 0; i < 10; i++) {
+            for (var j = 0; j < 10; j++) {
+                this.physics.add.collider(blueBugs[i], blueBugs[j]);
+            }
+        }
+        */
+
+        /*
+        player.setBounce(0.2);
+        player.setCollideWorldBounds(true);
+
+        this.anims.create({
+            key: 'left',
+            frames: this.anims.generateFrameNumbers('dude', { start: 0, end: 3 }),
+            frameRate: 10,
+            repeat: -1
+        });
+
+        this.anims.create({
+            key: 'turn',
+            frames: [ { key: 'dude', frame: 4 } ],
+            frameRate: 20
+        });
+
+        this.anims.create({
+            key: 'right',
+            frames: this.anims.generateFrameNumbers('dude', { start: 5, end: 8 }),
+            frameRate: 10,
+            repeat: -1
+        });
+
+        cursors = this.input.keyboard.createCursorKeys();
+
+        stars = this.physics.add.group({
+            key: 'star',
+            repeat: 11,
+            setXY: { x: 12, y: 0, stepX: 70 }
+        });
+
+        stars.children.iterate(function (child) {
+
+            child.setBounceY(Phaser.Math.FloatBetween(0.4, 0.8));
+
+        });
+
+        scoreText = this.add.text(16, 16, 'score: 0', { fontSize: '32px', fill: '#000' });
+
+        this.physics.add.collider(player, platforms);
+        this.physics.add.collider(stars, platforms);
+
+        this.physics.add.overlap(player, stars, collectStar, null, this);
+        */
+    }
+
+    function update ()
+    {
+        //setTimeout(() => bug.setRandomVelocity(), 2000);
+    }
+
+    function collectStar (player, star)
+    {
+        star.disableBody(true, true);
+
+        score += 10;
+        scoreText.setText('Score: ' + score);
+    }
+
+</script>
+
+</body>
+</html>
