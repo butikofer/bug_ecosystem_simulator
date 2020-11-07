@@ -2,35 +2,53 @@
 <html lang="en"> 
 <head> 
     <meta charset="UTF-8" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
     <title>Isaac's Ecosystem Simulator</title>
-    <script src="//cdn.jsdelivr.net/npm/phaser@3.11.0/dist/phaser.js"></script>
+    <script src="script/phaser.min.js"></script>
+    <script src="script/Chart.bundle.min.js"></script>
     <style type="text/css">
         body {
             margin: 0;
         }
+
+        .modal {
+            display: none;
+            z-index: 10;
+            position: fixed;
+            overflow: auto;
+            background-color: rgb(255, 255, 255);
+        }
     </style>
 
-    <form>
-        Number of Blue Bugs: <input type="text" id="numBlueBugs" size="3" onChange="changeNumBlueBugs();"/>
-        Number of Red Bugs: <input type="text" id="numRedBugs" size="3" onChange="changeNumRedBugs();"/>
-        Number of Food: <input type="text" id="numFood" size="3" onChange="changeNumFood();"/>
-        Speed: <input id="speed" type="text" size="5" onChange="changeSpeed();"/>
-        <button type="button" onClick="startGame();">Start Simulator</button>
-    </form>
 </head>
 <body>
+<!-- This is where we make our settings controls -->
+<form>
+    Number of Blue Bugs: <input type="text" id="numBlueBugs" size="3" onChange="changeNumBlueBugs();" />
+    Number of Red Bugs: <input type="text" id="numRedBugs" size="3" onChange="changeNumRedBugs();" />
+    Amount of Food: <input type="text" id="numFood" size="3" onChange="changeNumFood();" />
+    Speed: <input id="speed" type="text" size="5" onChange="changeSpeed();" />
+    <button type="button" onClick="startGame();">Start/Restart</button>
+    <button type="button" onClick="showChart();">Show Chart</button>
+</form>
+
+<div id="chartModal" class="modal">
+    <canvas id="myChart" width="400" height="400"></canvas>
+</div>
 
 <script type="text/javascript">
     "use strict";
 
-    var rnd = Phaser.Math.RND;
+    var rnd = new Phaser.Math.RandomDataGenerator(10);
     var numOfBugs = 100;
     var numOfRedBugs = 100;
     var numOfFood = 10;
     var bugSpeed = 50;
     var boardDimensionHeight = window.innerHeight;
     var boardDimensionWidth = window.innerWidth;
-    rnd.init(0);
 
     // These functions will change the settings when we update the setting fields
 
@@ -48,6 +66,36 @@
 
     function changeSpeed() {
         bugSpeed = parseInt(document.getElementById("speed").value);
+    }
+
+    var game = null;
+
+    function startGame() {
+        if (game !== null) {
+            // Reset the game and stats
+            console.log("Restarting");
+            game.scene.stop("default");
+            game.scene.run("default");
+            chartBlueData = [];
+            chartRedData = [];
+            chartLabels = [];
+            myChart = null;
+        } else {
+            game = new Phaser.Game(config);
+        }
+        
+        return false;
+    }
+
+    function showChart() {
+        let modal = document.getElementById("chartModal")
+
+        if (modal.style.display === "none") {
+            modal.style.display = "block";
+            renderChart();
+        } else {
+            modal.style.display = "none";
+        }
     }
 
     class Bug {
@@ -131,51 +179,21 @@
     var score = 0;
     var scoreText;
 
-    var game = null;
-
-    function startGame() {
-        if (game !== null) {
-            console.log("Restarting");
-            game.registry.destroy();
-            game.events.off();
-            game.scene.restart();
-        }
-        
-        game = new Phaser.Game(config);
-        
-        return false;
-    }
-
     function preload ()
     {
         this.load.image('blueBug', 'assets/blue_bug.png');
         this.load.image('redBug', 'assets/Red_bug.svg');
         this.load.image('food', 'assets/pixel-berry-bush.png');
-        /*
-        this.load.spritesheet('dude', 'assets/dude.png', { frameWidth: 32, frameHeight: 48 });
-        */
     }
 
     function create ()
     {
-
-        /*
-        platforms = this.physics.add.staticGroup();
-
-        platforms.create(400, 568, 'ground').setScale(2).refreshBody();
-
-        platforms.create(600, 400, 'ground');
-        platforms.create(50, 250, 'ground');
-        platforms.create(750, 220, 'ground');
-        */
-
         // Create a group to hold the blue bugs
         blueBugGroup = this.physics.add.group();
         blueBugGroup.enableBody = true;
 
         redBugGroup = this.physics.add.group();
         redBugGroup.enableBody = true;
-        
         
         for (let index = 0; index < numOfBugs; index++) {
             let bug = new Bug(blueBugGroup.create(100, 450, 'blueBug'), bugSpeed);
@@ -199,75 +217,77 @@
 
         // Make the blue and red bugs collide
         this.physics.add.collider(redBugGroup, blueBugGroup);
+    }
 
-        /*
-        for (var i = 0; i < 10; i++) {
-            for (var j = 0; j < 10; j++) {
-                this.physics.add.collider(blueBugs[i], blueBugs[j]);
-            }
+    var lastSampleTime = 0;
+
+    function update(time, delta)
+    {
+        if (time - lastSampleTime >= 5000) {
+            chartBlueData.push(blueBugGroup.countActive());
+            chartRedData.push(redBugGroup.countActive());
+            chartLabels.push(Math.floor(time / 1000));
+            console.log(time);
+            lastSampleTime = time;
+            myChart.update();
         }
-        */
-
-        /*
-        player.setBounce(0.2);
-        player.setCollideWorldBounds(true);
-
-        this.anims.create({
-            key: 'left',
-            frames: this.anims.generateFrameNumbers('dude', { start: 0, end: 3 }),
-            frameRate: 10,
-            repeat: -1
-        });
-
-        this.anims.create({
-            key: 'turn',
-            frames: [ { key: 'dude', frame: 4 } ],
-            frameRate: 20
-        });
-
-        this.anims.create({
-            key: 'right',
-            frames: this.anims.generateFrameNumbers('dude', { start: 5, end: 8 }),
-            frameRate: 10,
-            repeat: -1
-        });
-
-        cursors = this.input.keyboard.createCursorKeys();
-
-        stars = this.physics.add.group({
-            key: 'star',
-            repeat: 11,
-            setXY: { x: 12, y: 0, stepX: 70 }
-        });
-
-        stars.children.iterate(function (child) {
-
-            child.setBounceY(Phaser.Math.FloatBetween(0.4, 0.8));
-
-        });
-
-        scoreText = this.add.text(16, 16, 'score: 0', { fontSize: '32px', fill: '#000' });
-
-        this.physics.add.collider(player, platforms);
-        this.physics.add.collider(stars, platforms);
-
-        this.physics.add.overlap(player, stars, collectStar, null, this);
-        */
     }
 
-    function update ()
-    {
-        //setTimeout(() => bug.setRandomVelocity(), 2000);
+</script>
+
+<script>
+    var chartLabels = [];
+    var chartBlueData = [];
+    var chartRedData = [];
+
+    function generateChartData(labelList, redData, blueData) {
+        let chartConfig = {
+            type: 'line',
+            data: {
+                labels: labelList,
+                datasets: [
+                    {
+                        label: 'Red Bugs',
+                        backgroundColor: 'rgb(255, 99, 132)',
+                        borderColor: 'rgb(255, 99, 132)',
+                        data: redData,
+                        fill: false
+                    },
+                    {
+                        label: 'Blue Bugs',
+                        backgroundColor: 'rgb(54, 162, 235)',
+                        borderColor: 'rgb(54, 162, 235)',
+                        data: blueData,
+                        fill: false
+                    }
+                ],
+            },
+            options: {
+                scales: {
+                    xAxes: [{
+                        display: true,
+                        scaleLabel: {
+                            display: true,
+                            labelString: "Time"
+                        }
+                    }]
+                }
+            }
+        };
+
+        return chartConfig;
     }
 
-    function collectStar (player, star)
-    {
-        star.disableBody(true, true);
-
-        score += 10;
-        scoreText.setText('Score: ' + score);
+    var myChart = null;
+    function renderChart() {
+        let ctx = document.getElementById('myChart').getContext('2d');
+        if (myChart === null) {
+            myChart = new Chart(ctx, generateChartData(chartLabels, chartRedData, chartBlueData));
+            myChart = new Chart(ctx, chartConfig);
+        } else {
+            myChart.update();
+        }
     }
-
 </script>
 
 </body>
