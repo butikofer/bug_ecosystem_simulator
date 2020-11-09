@@ -7,7 +7,7 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
     <link rel="manifest" href="/site.webmanifest">
     <title>Isaac's Ecosystem Simulator</title>
-    <script src="script/phaser.min.js"></script>
+    <script src="script/phaser.js"></script>
     <script src="script/Chart.bundle.min.js"></script>
     <style type="text/css">
         body {
@@ -30,27 +30,43 @@
     Number of Blue Bugs: <input type="text" id="numBlueBugs" size="3" onChange="changeNumBlueBugs();" />
     Number of Red Bugs: <input type="text" id="numRedBugs" size="3" onChange="changeNumRedBugs();" />
     Amount of Food: <input type="text" id="numFood" size="3" onChange="changeNumFood();" />
-    Speed: <input id="speed" type="text" size="5" onChange="changeSpeed();" />
+    Food Regen (Sec): <input type="text" id="foodRegen" size="3" onChange="changeFoodRegen();" />
+    Bug Hunger (Sec): <input type="text" id="bugHunger" size="3" onChange="changeBugHunger();" />
+    Blue Speed: <input id="blueSpeed" type="text" size="5" onChange="changeBlueSpeed();" />
+    Red Speed: <input id="redSpeed" type="text" size="5" onChange="changeRedSpeed();" />
     <button type="button" onClick="startGame();">Start/Restart</button>
     <button type="button" onClick="showChart();">Show Chart</button>
 </form>
 
 <div id="chartModal" class="modal">
-    <canvas id="myChart" width="400" height="400"></canvas>
+    <canvas id="myChart" width="1200" height="1200"></canvas>
 </div>
 
 <script type="text/javascript">
     "use strict";
 
     var rnd = new Phaser.Math.RandomDataGenerator(10);
-    var numOfBugs = 100;
-    var numOfRedBugs = 100;
-    var numOfFood = 10;
-    var bugSpeed = 50;
+    var numOfBugs = 10;
+    var numOfRedBugs = 10;
+    var numOfFood = 30;
+    var blueSpeed = 50;
+    var redSpeed = 40;
+    var foodRegenTime = 5000;
+    var chartUpdateTime = 1000;
+    var bounceRate = 1.0;
+    var bugHungerTime = 10000;
     var boardDimensionHeight = window.innerHeight;
     var boardDimensionWidth = window.innerWidth;
 
     // These functions will change the settings when we update the setting fields
+
+    function changeBugHunger() {
+        bugHungerTime = parseInt(document.getElementById("bugHunger").value) * 1000;
+    }
+
+    function changeFoodRegen() {
+        foodRegenTime = parseInt(document.getElementById("foodRegen").value) * 1000;
+    }
 
     function changeNumBlueBugs() {
         numOfBugs = parseInt(document.getElementById("numBlueBugs").value);
@@ -64,8 +80,12 @@
         numOfFood = parseInt(document.getElementById("numFood").value);
     }
 
-    function changeSpeed() {
-        bugSpeed = parseInt(document.getElementById("speed").value);
+    function changeBlueSpeed() {
+        blueSpeed = parseInt(document.getElementById("blueSpeed").value);
+    }
+
+    function changeRedSpeed() {
+        redSpeed = parseInt(document.getElementById("redSpeed").value);
     }
 
     var game = null;
@@ -104,8 +124,12 @@
             this.speed = speed;
             this.health = 0;
             this.lastVelocityUpdate = 0;
-            this.sprite.setVelocityX(rnd.frac() * this.speed);
-            this.sprite.setVelocityY(rnd.frac() * this.speed);
+
+            this.sprite.setVelocityX(rnd.sign() * this.speed + (rnd.frac() / 10 * this.speed));
+            this.sprite.setVelocityY(rnd.sign() * this.speed + (rnd.frac() / 10 * this.speed));
+
+            // This could be used to make each bug have a different speed
+            //this.sprite.setVelocityY(rnd.frac() * this.speed);
         }
 
         set velocityX(v) {
@@ -114,43 +138,7 @@
 
         set velocityY(v) {
             this.sprite.setVelocityY(v);
-        }
-
-        isAtWorldBorder() {
-            if (this.sprite.body.checkWorldBounds()) {
-                console.log("At world boundary!");
-                return true;
-            } else {
-                return false;
-            }
-        }
-
-        setRandomVelocity() {
-            if (this.isAtWorldBorder() === false) {
-                return;
-            }
-
-            let oldX = this.sprite.body.velocity.x;
-            let oldY = this.sprite.body.velocity.y;
-            let xSign = oldX >= 0 ? 1 : -1;
-            let ySign = oldY >= 0 ? 1 : -1;
-
-            console.log(this.sprite.body.velocity);
-            console.log(oldX);
-            console.log(xSign);
-            console.log(ySign);
-
-            /*let newX = rnd.between(0,100) * xSign * -1;
-            let newY = rnd.between(0,100) * ySign * -1;*/
-
-            let newX = oldX * xSign * -1;
-            let newY = oldY * xSign * -1;
-
-            console.log(newX + "," + newY);
-
-            this.sprite.setVelocityX(newX);
-            this.sprite.setVelocityY(newY);
-        }
+        }                
     };
 
     var config = {
@@ -194,43 +182,125 @@
 
         redBugGroup = this.physics.add.group();
         redBugGroup.enableBody = true;
+
+        foodGroup = this.physics.add.group();
+
+        for (let index = 0; index < numOfFood; index++) {
+            createFood();            
+        }
         
         for (let index = 0; index < numOfBugs; index++) {
-            let bug = new Bug(blueBugGroup.create(100, 450, 'blueBug'), bugSpeed);
-            bug.sprite.setScale(0.05);
-            bug.sprite.setCollideWorldBounds(true);
-            bug.sprite.body.bounce.set(1);
+            createBlueBug(null, this);            
         }
         
         for (let index = 0; index < numOfRedBugs; index++) {
-            let bug = new Bug(redBugGroup.create(100, 450, 'redBug'), bugSpeed);
-
-            bug.sprite.setScale(0.05);
-            bug.sprite.setCollideWorldBounds(true);
-            bug.sprite.body.bounce.set(1);
-        }
-
-        for (let index = 0; index < numOfFood; index++) {
-            let food = this.physics.add.sprite(rnd.between(0,boardDimensionWidth), rnd.between(0,boardDimensionHeight), 'food');
-            food.setScale(0.008);
+            createRedBug(null, this);            
         }
 
         // Make the blue and red bugs collide
-        this.physics.add.collider(redBugGroup, blueBugGroup);
+        // this.physics.add.collider(redBugGroup, blueBugGroup);
+
+        // Make the the blue bugs collide with each other
+        // this.physics.add.collider(blueBugGroup, blueBugGroup);
+
+        // Make the red bugs collide with each other
+        // this.physics.add.collider(redBugGroup, redBugGroup);
+
+        // Make the blue bugs eat food
+        //blueBugGroup.getChildren().forEach(blueBug => this.physics.add.overlap(blueBug, foodGroup, eatFood, null, this));
+
+        // Make the red bugs eat blue bugs!
+        //redBugGroup.getChildren().forEach(redBug => this.physics.add.overlap(redBug, blueBugGroup, eatBug, null, this));
     }
 
     var lastSampleTime = 0;
+    var lastFoodTime = 0;
 
     function update(time, delta)
     {
-        if (time - lastSampleTime >= 5000) {
+        if (time - lastSampleTime >= chartUpdateTime) {
             chartBlueData.push(blueBugGroup.countActive());
             chartRedData.push(redBugGroup.countActive());
+            foodData.push(foodGroup.countActive());
             chartLabels.push(Math.floor(time / 1000));
-            console.log(time);
             lastSampleTime = time;
-            myChart.update();
+
+            if (myChart) {
+                myChart.update();
+            }
         }
+
+        if (time - lastFoodTime >= foodRegenTime) {
+            createFood();
+            lastFoodTime = time;
+        }
+
+        // Check each blue bug for starvation
+        blueBugGroup.getChildren().forEach(bug => {
+            bug.lastFed += delta;
+            if (bug.lastFed >= bugHungerTime) {
+                bug.destroy();
+            }
+        });
+
+        // Check each red bug for starvation
+        redBugGroup.getChildren().forEach(r => {
+            r.lastFed += delta;
+            if (r.lastFed >= bugHungerTime) {
+                r.destroy();
+            }
+        });
+    }
+
+    function createFood() {
+        let food = foodGroup.create(rnd.between(0,boardDimensionWidth), rnd.between(0,boardDimensionHeight), 'food');
+        food.setScale(0.008);
+    }
+
+    function eatFood(blueBug, food) {
+        // Have the food disappear when the bug eats it!
+        food.destroy();       
+
+        blueBug.lastFed = 0;
+
+        // Create a new baby bug
+        createBlueBug(blueBug, this);        
+    }
+
+    function createBlueBug(parent, sceneObj) {
+        let newX = parent !== null ? parent.x - rnd.between(10, 20) : rnd.between(0,boardDimensionWidth);
+        let newY = parent !== null ? parent.y - rnd.between(10, 20) : rnd.between(0,boardDimensionHeight);
+        let baby = new Bug(blueBugGroup.create(newX, newY, 'blueBug'), blueSpeed);
+        baby.sprite.setScale(0.05);
+        baby.sprite.setCollideWorldBounds(true);
+        baby.sprite.body.bounce.set(bounceRate, bounceRate);        
+        baby.sprite.lastFed = 0;
+
+        sceneObj.physics.add.overlap(baby.sprite, foodGroup, eatFood, null, sceneObj);
+        return baby;
+    }
+
+    function eatBug(redBug, blueBug) {
+        // Eat the blue bug and make it disappear
+        blueBug.destroy();
+
+        redBug.lastFed = 0;
+
+        // Create new red baby bug
+        createRedBug(redBug, this);
+    }
+
+    function createRedBug(parent, sceneObj) {
+        let newX = parent !== null ? parent.x - rnd.between(10, 20) : rnd.between(0,boardDimensionWidth);
+        let newY = parent !== null ? parent.y - rnd.between(10, 20) : rnd.between(0,boardDimensionHeight);
+        let baby = new Bug(redBugGroup.create(newX, newY, 'redBug'), redSpeed);
+        baby.sprite.setScale(0.04);
+        baby.sprite.setCollideWorldBounds(true);
+        baby.sprite.body.bounce.set(bounceRate, bounceRate);
+        baby.sprite.lastFed = 0;
+
+        sceneObj.physics.add.overlap(baby.sprite, blueBugGroup, eatBug, null, sceneObj);        
+        return baby;
     }
 
 </script>
@@ -239,8 +309,9 @@
     var chartLabels = [];
     var chartBlueData = [];
     var chartRedData = [];
+    var foodData = [];
 
-    function generateChartData(labelList, redData, blueData) {
+    function generateChartData(labelList, redData, blueData, foodData) {
         let chartConfig = {
             type: 'line',
             data: {
@@ -259,7 +330,16 @@
                         borderColor: 'rgb(54, 162, 235)',
                         data: blueData,
                         fill: false
-                    }
+                    },
+                    {
+                        label: 'Food',
+                        backgroundColor: 'rgb(0, 255, 0)',
+                        borderColor: 'rgb(0, 255, 0)',
+                        data: foodData,
+                        fill: false
+                    },
+
+
                 ],
             },
             options: {
@@ -282,7 +362,7 @@
     function renderChart() {
         let ctx = document.getElementById('myChart').getContext('2d');
         if (myChart === null) {
-            myChart = new Chart(ctx, generateChartData(chartLabels, chartRedData, chartBlueData));
+            myChart = new Chart(ctx, generateChartData(chartLabels, chartRedData, chartBlueData, foodData));
             myChart = new Chart(ctx, chartConfig);
         } else {
             myChart.update();
