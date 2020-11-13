@@ -30,6 +30,7 @@
     Number of Blue Bugs: <input type="text" id="numBlueBugs" size="3" onChange="changeNumBlueBugs();" />
     Number of Red Bugs: <input type="text" id="numRedBugs" size="3" onChange="changeNumRedBugs();" />
     Amount of Food: <input type="text" id="numFood" size="3" onChange="changeNumFood();" />
+    Number of Mushrooms: <input type="text" id="numOfmushroom" size="3" onChange="changeNumOfmushroom();" />
     Food Regen (Sec): <input type="text" id="foodRegen" size="3" onChange="changeFoodRegen();" />
     Bug Hunger (Sec): <input type="text" id="bugHunger" size="3" onChange="changeBugHunger();" />
     Blue Speed: <input id="blueSpeed" type="text" size="5" onChange="changeBlueSpeed();" />
@@ -55,10 +56,18 @@
     var chartUpdateTime = 1000;
     var bounceRate = 1.0;
     var bugHungerTime = 10000;
+    var eggHatchTime = 10000;
     var boardDimensionHeight = window.innerHeight;
     var boardDimensionWidth = window.innerWidth;
+    var numOfmushroom = 10;
+    var numOfYellowBugs = 10;
+    var numOfdoublefood = 10;
+    var numOfrarefood = 10;
 
     // These functions will change the settings when we update the setting fields
+    function changeNumOfmushroom() {
+        numOfmushroom = parseInt(document.getElementById("numOfmushroom").value);
+    }
 
     function changeBugHunger() {
         bugHungerTime = parseInt(document.getElementById("bugHunger").value) * 1000;
@@ -74,6 +83,10 @@
 
     function changeNumRedBugs() {
         numOfRedBugs = parseInt(document.getElementById("numRedBugs").value);
+    }
+
+    function changeNumYellowBugs() {
+        numOfYellowBugs = parseInt(document.getElementById("numYellowBugs").value);
     }
 
     function changeNumFood() {
@@ -159,10 +172,12 @@
             update: update
         }
     };
-
+    var mushroomgroup;
     var blueBugGroup;
     var redBugGroup;
+    var yellowBugGroup;
     var foodGroup;
+    var yellowEggGroup;
     var cursors;
     var score = 0;
     var scoreText;
@@ -172,6 +187,9 @@
         this.load.image('blueBug', 'assets/blue_bug.png');
         this.load.image('redBug', 'assets/Red_bug.svg');
         this.load.image('food', 'assets/pixel-berry-bush.png');
+        this.load.image('mushroom', 'assets/Decomposer.png');
+        this.load.image('egg', 'assets/egg.png');
+        this.load.image('yellowBug', 'assets/YellowBug.png');
     }
 
     function create ()
@@ -183,8 +201,16 @@
         redBugGroup = this.physics.add.group();
         redBugGroup.enableBody = true;
 
-        foodGroup = this.physics.add.group();
+        yellowBugGroup = this.physics.add.group();
+        yellowBugGroup.enableBody = true;
 
+        foodGroup = this.physics.add.group();
+        yellowEggGroup = this.physics.add.group();
+        mushroomgroup = this.physics.add.group();
+
+        for (let index = 0; index < numOfmushroom; index++) {
+            createmushroom(rnd.between(0,boardDimensionWidth), rnd.between(0,boardDimensionHeight));            
+        }
         for (let index = 0; index < numOfFood; index++) {
             createFood();            
         }
@@ -196,6 +222,11 @@
         for (let index = 0; index < numOfRedBugs; index++) {
             createRedBug(null, this);            
         }
+
+        for (let index = 0; index < numOfYellowBugs; index++) {
+            createYellowBug(null, this);
+        }
+
 
         // Make the blue and red bugs collide
         // this.physics.add.collider(redBugGroup, blueBugGroup);
@@ -240,6 +271,7 @@
             bug.lastFed += delta;
             if (bug.lastFed >= bugHungerTime) {
                 bug.destroy();
+                createmushroom(bug.x,bug.y);
             }
         });
 
@@ -248,10 +280,35 @@
             r.lastFed += delta;
             if (r.lastFed >= bugHungerTime) {
                 r.destroy();
+                createmushroom(r.x,r.y);
             }
         });
-    }
 
+        // Check each yellow bug for starvation
+        yellowBugGroup.getChildren().forEach(bug => {
+            bug.lastFed += delta;
+            if (bug.lastFed >= bugHungerTime) {
+                bug.destroy();
+                createmushroom(bug.x, bug.y);
+            }
+        });
+
+
+
+        // Check each yellow egg for hatching
+        yellowEggGroup.getChildren().forEach(e => {
+            e.laidTime += delta;
+            if (e.laidTime >= eggHatchTime) {
+                e.destroy();
+                createYellowBug(e, this);
+            }
+        });
+
+    }
+    function createmushroom(x, y) {
+        let food = mushroomgroup.create(x, y, 'mushroom');
+        food.setScale(0.03);
+    }
     function createFood() {
         let food = foodGroup.create(rnd.between(0,boardDimensionWidth), rnd.between(0,boardDimensionHeight), 'food');
         food.setScale(0.008);
@@ -267,6 +324,16 @@
         createBlueBug(blueBug, this);        
     }
 
+    function eatmushroom(yellowBug, mushroom) {
+        // Have the food disappear when the bug eats it!
+        mushroom.destroy();
+
+        yellowBug.lastFed = 0;
+
+        // Create a new baby bug
+        createYellowEgg(yellowBug, this);        
+    }
+
     function createBlueBug(parent, sceneObj) {
         let newX = parent !== null ? parent.x - rnd.between(10, 20) : rnd.between(0,boardDimensionWidth);
         let newY = parent !== null ? parent.y - rnd.between(10, 20) : rnd.between(0,boardDimensionHeight);
@@ -277,6 +344,8 @@
         baby.sprite.lastFed = 0;
 
         sceneObj.physics.add.overlap(baby.sprite, foodGroup, eatFood, null, sceneObj);
+        sceneObj.physics.add.overlap(baby.sprite, yellowEggGroup, crushEgg, null, sceneObj);        
+        //sceneObj.physics.add.overlap(baby.sprite, mushroomgroup, eatmushroom, null, sceneObj);
         return baby;
     }
 
@@ -290,6 +359,21 @@
         createRedBug(redBug, this);
     }
 
+    function eatRedBug(yellowBug, redBug) {
+        // Eat the red bug and make it disappear
+        redBug.destroy();
+
+        yellowBug.lastFed = 0;
+
+        // Create new yellow egg
+        createYellowEgg(yellowBug, this);
+    }
+
+    function crushEgg(bug, egg) {
+        // Crush the egg
+        egg.destroy();
+    }
+
     function createRedBug(parent, sceneObj) {
         let newX = parent !== null ? parent.x - rnd.between(10, 20) : rnd.between(0,boardDimensionWidth);
         let newY = parent !== null ? parent.y - rnd.between(10, 20) : rnd.between(0,boardDimensionHeight);
@@ -300,7 +384,33 @@
         baby.sprite.lastFed = 0;
 
         sceneObj.physics.add.overlap(baby.sprite, blueBugGroup, eatBug, null, sceneObj);        
+        sceneObj.physics.add.overlap(baby.sprite, yellowEggGroup, crushEgg, null, sceneObj);        
         return baby;
+    }
+
+    function createYellowBug(parent, sceneObj) {
+        let newX = parent !== null ? parent.x - rnd.between(10, 20) : rnd.between(0,boardDimensionWidth);
+        let newY = parent !== null ? parent.y - rnd.between(10, 20) : rnd.between(0,boardDimensionHeight);
+        let baby = new Bug(yellowBugGroup.create(newX, newY, 'yellowBug'), redSpeed);
+        baby.sprite.setScale(0.12);
+        baby.sprite.setCollideWorldBounds(true);
+        baby.sprite.body.bounce.set(bounceRate, bounceRate);
+        baby.sprite.lastFed = 0;
+
+        sceneObj.physics.add.overlap(baby.sprite, redBugGroup, eatRedBug, null, sceneObj);        
+        sceneObj.physics.add.overlap(baby.sprite, mushroomgroup, eatmushroom, null, sceneObj);        
+        return baby;
+    }
+
+    function createYellowEgg(parent, sceneObj) {
+        let newX = parent !== null ? parent.x - rnd.between(10, 20) : rnd.between(0,boardDimensionWidth);
+        let newY = parent !== null ? parent.y - rnd.between(10, 20) : rnd.between(0,boardDimensionHeight);
+        let egg = yellowEggGroup.create(newX, newY, 'egg');
+        egg.setScale(0.08);
+        
+        egg.laidTime = 0;
+
+        return egg;
     }
 
 </script>
