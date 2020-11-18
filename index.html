@@ -105,16 +105,21 @@
 
     function startGame() {
         if (game !== null) {
+            // this is where we restart the simulator if it is already running
             // Reset the game and stats
             console.log("Restarting");
             game.scene.stop("default");
             game.scene.run("default");
+
+            // Clear all the chart data
             chartBlueData = [];
             chartRedData = [];
             chartLabels = [];
+            foodData = [];
             myChart = null;
         } else {
-            game = new Phaser.Game(config);
+            // this is where we make a brand new simulator
+            game = new Phaser.Game(phaserConfig);
         }
         
         return false;
@@ -154,7 +159,8 @@
         }                
     };
 
-    var config = {
+    // this is the Phaser config
+    var phaserConfig = {
         type: Phaser.AUTO,
         width: boardDimensionWidth,
         height: boardDimensionHeight,
@@ -172,6 +178,7 @@
             update: update
         }
     };
+
     var mushroomgroup;
     var blueBugGroup;
     var redBugGroup;
@@ -192,9 +199,11 @@
         this.load.image('yellowBug', 'assets/YellowBug.png');
     }
 
-    function create ()
-    {
-        // Create a group to hold the blue bugs
+    function create() {
+        // This create function is called once when the simulation is started/restarted.
+        // It sets up the simulator.
+
+        // Create groups to hold all of the sprites
         blueBugGroup = this.physics.add.group();
         blueBugGroup.enableBody = true;
 
@@ -208,25 +217,30 @@
         yellowEggGroup = this.physics.add.group();
         mushroomgroup = this.physics.add.group();
 
+        // create the first mushrooms
         for (let index = 0; index < numOfmushroom; index++) {
             createmushroom(rnd.between(0,boardDimensionWidth), rnd.between(0,boardDimensionHeight));            
         }
+
+        // create the initial food
         for (let index = 0; index < numOfFood; index++) {
             createFood();            
         }
-        
+
+        // create starting blue bugs
         for (let index = 0; index < numOfBugs; index++) {
             createBlueBug(null, this);            
         }
         
+        // create starting red bugs
         for (let index = 0; index < numOfRedBugs; index++) {
             createRedBug(null, this);            
         }
 
+        // create starting yellow bugs
         for (let index = 0; index < numOfYellowBugs; index++) {
             createYellowBug(null, this);
         }
-
 
         // Make the blue and red bugs collide
         // this.physics.add.collider(redBugGroup, blueBugGroup);
@@ -243,12 +257,11 @@
         // Make the red bugs eat blue bugs!
         //redBugGroup.getChildren().forEach(redBug => this.physics.add.overlap(redBug, blueBugGroup, eatBug, null, this));
     }
-
     var lastSampleTime = 0;
     var lastFoodTime = 0;
 
-    function update(time, delta)
-    {
+    function update(time, delta) {
+        // this is where we update the chart
         if (time - lastSampleTime >= chartUpdateTime) {
             chartBlueData.push(blueBugGroup.countActive());
             chartRedData.push(redBugGroup.countActive());
@@ -293,8 +306,6 @@
             }
         });
 
-
-
         // Check each yellow egg for hatching
         yellowEggGroup.getChildren().forEach(e => {
             e.laidTime += delta;
@@ -305,10 +316,12 @@
         });
 
     }
+
     function createmushroom(x, y) {
         let food = mushroomgroup.create(x, y, 'mushroom');
         food.setScale(0.03);
     }
+
     function createFood() {
         let food = foodGroup.create(rnd.between(0,boardDimensionWidth), rnd.between(0,boardDimensionHeight), 'food');
         food.setScale(0.008);
@@ -413,9 +426,6 @@
         return egg;
     }
 
-</script>
-
-<script>
     var chartLabels = [];
     var chartBlueData = [];
     var chartRedData = [];
@@ -473,7 +483,6 @@
         let ctx = document.getElementById('myChart').getContext('2d');
         if (myChart === null) {
             myChart = new Chart(ctx, generateChartData(chartLabels, chartRedData, chartBlueData, foodData));
-            myChart = new Chart(ctx, chartConfig);
         } else {
             myChart.update();
         }
